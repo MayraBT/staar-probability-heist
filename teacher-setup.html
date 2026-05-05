@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Probability Heist — Teacher Setup</title>
+<style>
+  body {
+    font-family: 'Helvetica Neue', sans-serif;
+    background: #1a1410;
+    color: #f1e8d4;
+    margin: 0;
+    padding: 30px 20px;
+    min-height: 100vh;
+  }
+  .card {
+    max-width: 540px;
+    margin: 40px auto;
+    background: #2a1f15;
+    border: 1px solid #b8862c;
+    border-radius: 6px;
+    padding: 32px;
+  }
+  h1 { color: #b8862c; margin: 0 0 4px; font-size: 26px; }
+  .sub { color: #d9cba8; font-size: 13px; letter-spacing: 2px; margin-bottom: 22px; }
+  label {
+    display: block; margin: 14px 0 4px; color: #d9cba8;
+    font-size: 12px; letter-spacing: 1.5px;
+  }
+  input, select {
+    width: 100%; padding: 10px; box-sizing: border-box;
+    background: #1a1410; color: #f1e8d4; border: 1px solid #b8862c;
+    border-radius: 3px; font-size: 15px; font-family: inherit;
+  }
+  button {
+    width: 100%; padding: 12px; margin-top: 18px;
+    background: #b8862c; color: #1a1410; border: none; border-radius: 3px;
+    font-size: 14px; font-weight: bold; letter-spacing: 2px; cursor: pointer;
+  }
+  button:hover { background: #d4a043; }
+  .code-display {
+    margin-top: 22px; padding: 18px; background: #1a1410;
+    border: 2px dashed #b8862c; border-radius: 4px; text-align: center;
+    display: none;
+  }
+  .code-display.show { display: block; }
+  .code-display .code {
+    font-size: 36px; letter-spacing: 8px; color: #b8862c; font-weight: bold;
+    font-family: monospace;
+  }
+  .code-display .meta { color: #d9cba8; font-size: 12px; margin-top: 8px; }
+  .status { margin-top: 14px; font-size: 12px; min-height: 16px; }
+  .status.ok { color: #7dd87d; }
+  .status.err { color: #d97777; }
+  .existing-list { margin-top: 24px; }
+  .existing-list h3 { color: #d9cba8; font-size: 13px; letter-spacing: 2px; }
+  .existing-class {
+    padding: 10px 14px; margin: 6px 0; background: #1a1410;
+    border: 1px solid #3d2f24; border-radius: 3px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .existing-class .lbl { color: #f1e8d4; font-size: 14px; }
+  .existing-class .cd { color: #b8862c; font-family: monospace; font-weight: bold; }
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<div class="card">
+  <h1>🐝 Class Code Setup</h1>
+  <div class="sub">PROBABILITY HEIST · TEACHER TOOL</div>
+
+  <label>TEACHER LAST NAME</label>
+  <input type="text" id="teacher" placeholder="e.g., Ojeda">
+
+  <label>CLASS PERIOD (BLOCKED)</label>
+  <select id="period">
+    <option value="1-2">1st / 2nd Period</option>
+    <option value="3-4">3rd / 4th Period</option>
+    <option value="5-6">5th / 6th Period</option>
+    <option value="7-8">7th / 8th Period</option>
+  </select>
+
+  <button onclick="generateCode()">GENERATE NEW CLASS CODE</button>
+
+  <div class="code-display" id="codeDisplay">
+    <div class="code" id="codeValue">XXXXXX</div>
+    <div class="meta" id="codeMeta">Share this code with your students</div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="existing-list">
+    <h3>YOUR ACTIVE CLASS CODES</h3>
+    <div id="existingClasses"></div>
+  </div>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCzhgBGCCeB_wJdHgVqh2lAwqT4R2g0rKQ",
+    authDomain: "greiner-math-assessment.firebaseapp.com",
+    databaseURL: "https://greiner-math-assessment-default-rtdb.firebaseio.com",
+    projectId: "greiner-math-assessment",
+    storageBucket: "greiner-math-assessment.firebasestorage.app",
+    messagingSenderId: "942290233729",
+    appId: "1:942290233729:web:660abe78f902e94c702080"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const ASSESSMENT_KEY = "probability_heist";
+
+  function randomCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // omit I,O,1,0
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  async function generateCode() {
+    const teacher = document.getElementById('teacher').value.trim();
+    const period = document.getElementById('period').value;
+    const status = document.getElementById('status');
+    if (!teacher) {
+      status.textContent = "Enter your last name first.";
+      status.className = "status err";
+      return;
+    }
+    let code;
+    let attempts = 0;
+    while (attempts < 10) {
+      code = randomCode();
+      const snap = await db.ref(`${ASSESSMENT_KEY}/classes/${code}`).once('value');
+      if (!snap.exists()) break;
+      attempts++;
+    }
+    await db.ref(`${ASSESSMENT_KEY}/classes/${code}`).set({
+      teacher: teacher,
+      period: period,
+      createdAt: Date.now()
+    });
+    document.getElementById('codeValue').textContent = code;
+    document.getElementById('codeMeta').textContent =
+      `${teacher} · Periods ${period} · Created ${new Date().toLocaleString()}`;
+    document.getElementById('codeDisplay').classList.add('show');
+    status.textContent = "Code generated and saved.";
+    status.className = "status ok";
+    refreshExisting(teacher);
+  }
+
+  function refreshExisting(teacherFilter) {
+    db.ref(`${ASSESSMENT_KEY}/classes`).once('value').then(snap => {
+      const all = snap.val() || {};
+      const list = document.getElementById('existingClasses');
+      list.innerHTML = "";
+      const filtered = Object.entries(all).filter(([code, c]) =>
+        !teacherFilter || (c.teacher || "").toLowerCase() === teacherFilter.toLowerCase()
+      );
+      filtered.sort((a,b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="existing-class"><span class="lbl">No active codes for this teacher yet.</span></div>';
+        return;
+      }
+      filtered.forEach(([code, c]) => {
+        const div = document.createElement('div');
+        div.className = 'existing-class';
+        div.innerHTML = `<span class="lbl">${c.teacher} · Periods ${c.period}</span><span class="cd">${code}</span>`;
+        list.appendChild(div);
+      });
+    });
+  }
+
+  document.getElementById('teacher').addEventListener('blur', e => {
+    if (e.target.value.trim()) refreshExisting(e.target.value.trim());
+  });
+</script>
+
+</body>
+</html>
